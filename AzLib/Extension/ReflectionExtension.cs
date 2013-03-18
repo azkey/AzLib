@@ -10,7 +10,7 @@ namespace AzLib.Extension {
 		private static Dictionary<Type, GetSiteCollection> _getSiteCollectionCache = new Dictionary<Type, GetSiteCollection>();
 
 		/// <summary>
-		/// プロパティ名から値を取得する
+		/// プロパティ名から値を高速取得する
 		/// </summary>
 		/// <param name="obj">取得対象のオブジェクト</param>
 		/// <param name="propertyName">プロパティ名</param>
@@ -44,12 +44,12 @@ namespace AzLib.Extension {
 		}
 
 		/// <summary>
-		/// 指定したプロパティに値をセットする
+        /// 指定したプロパティに値を設定する
 		/// </summary>
-		/// <typeparam name="T"></typeparam>
-		/// <param name="obj"></param>
-		/// <param name="propertyName"></param>
-		/// <param name="value"></param>
+		/// <typeparam name="T">プロパティの型</typeparam>
+		/// <param name="obj">設定対象プロパティ</param>
+		/// <param name="propertyName">プロパティ名</param>
+		/// <param name="value">設定値</param>
 		public static void SetPropertyValue(this object obj, string propertyName, object value) {
 			var prop = obj.GetType().GetProperty(propertyName);
 
@@ -57,7 +57,7 @@ namespace AzLib.Extension {
 		}
 
 		/// <summary>
-		/// プロパティ名と値を全て取得する
+        /// プロパティ名と値を全て高速取得する
 		/// </summary>
 		/// <param name="obj">取得対象のオブジェクト</param>
 		/// <returns>プロパティ名と値を含んだDictionary</returns>
@@ -70,7 +70,7 @@ namespace AzLib.Extension {
 		}
 
 		/// <summary>
-		/// プロパティ名と値を全て取得する
+        /// プロパティ名と値を全て高速取得する
 		/// </summary>
 		/// <param name="obj">取得対象のオブジェクト</param>
 		/// <returns>プロパティ名と値を含んだDictionary</returns>

@@ -251,6 +251,9 @@ namespace AzLib.DataBase {
 			return this.Command.ExecuteNonQuery();
 		}
 
+		public DataTable CreateDataTable(string tableName, object parameters = null) {
+		}
+
 		/// <summary>
 		/// DataTableへの充填
 		/// </summary>

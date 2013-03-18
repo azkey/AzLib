@@ -42,12 +42,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Extension\CsvExtension.cs" />
+    <Compile Include="Extension\DataTableExtension.cs" />
     <Compile Include="HelperClass\callsite.cs" />
     <Compile Include="DataBase\Extension.cs" />
     <Compile Include="DataBase\SettingManager.cs" />
     <Compile Include="DataBase\DbConnector.cs" />
-    <Compile Include="Extension.cs" />
-    <Compile Include="Helper.cs" />
+    <Compile Include="Extension\ReflectionExtension.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -79,9 +80,7 @@
       <LastGenOutput>Sql.Designer.cs</LastGenOutput>
     </EmbeddedResource>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Interface\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

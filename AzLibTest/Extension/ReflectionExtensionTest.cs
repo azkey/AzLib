@@ -6,7 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace AzLibTest {
 	[TestClass]
-	public class ExtensionTest {
+	public class ReflectionExtensionTest {
 		[TestMethod]
 		public void GetPropertyValueTest() {
 			var test = new TestClass();
