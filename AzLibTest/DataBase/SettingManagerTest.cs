@@ -9,7 +9,7 @@ namespace AzLibTest {
 	public class SettingManagerTest {
 		[TestMethod]
 		[ExpectedException(typeof(ArgumentException))]
-		public void Add() {
+		public void AddTest() {
 			DbSettings.Manager.Add("Test", @"Server=.\SQLEXPRESS;Integrated Security=true;", "System.Data.SqlClient");
 
 			Assert.AreEqual(DbSettings.Manager["Test"].ConnectionString, @"Server=.\SQLEXPRESS;Integrated Security=true;");
