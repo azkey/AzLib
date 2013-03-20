@@ -15,6 +15,17 @@ namespace AzLibTest.DataBase {
 
 		[TestInitialize()]
 		public void DbConnectorTestInitialize() {
+			if (!dbCon.ExistsTable(TEST_TABLE_NAME)) {
+				DbConnectorTest.dbCon.NonQuery(string.Format(@"
+CREATE TABLE {0} (
+	ID int IDENTITY(0, 1) PRIMARY KEY,
+	Int int,
+	String nvarchar(MAX),
+	Date datetime
+)
+", DbConnectorTest.TEST_TABLE_NAME));
+			}
+
 			dbCon.Insert(TEST_TABLE_NAME, new {
 				Int = 123,
 				String = "Test",
