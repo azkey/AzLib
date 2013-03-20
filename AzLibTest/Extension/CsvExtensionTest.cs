@@ -16,7 +16,7 @@ st1"",""Te""""st2"",Test3
 ,"""""""",
 ";
 
-			var result = testCsv.CsvAsEnumerable().Select((itm, count) => new { Itm = itm, Count = count });
+			var result = testCsv.CsvToEnumerator().Select((itm, count) => new { Itm = itm, Count = count });
 
 			foreach (var itm in result) {
 				if (itm.Count == 0) {

@@ -41,6 +41,9 @@
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Data" />
+    <Reference Include="System.XML" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Xml.Serialization" />
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -58,9 +61,10 @@
     <Compile Include="DataBase\DbConnectorTest.cs" />
     <Compile Include="Extension\ReflectionExtensionTest.cs" />
     <Compile Include="Extension\CsvExtensionTest.cs" />
+    <Compile Include="Extension\DataTableExtensionTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="DataBase\SettingManagerTest.cs" />
-    <Compile Include="UnitTest1.cs" />
+    <Compile Include="TestInitializer.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AzLib\AzLib.csproj">

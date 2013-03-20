@@ -83,11 +83,20 @@ namespace AzLib.Properties {
         }
         
         /// <summary>
+        ///   DROP DATABASE {0} に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string DropDatabaseFormat {
+            get {
+                return ResourceManager.GetString("DropDatabaseFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   DROP TABLE {0} に類似しているローカライズされた文字列を検索します。
         /// </summary>
-        internal static string DropFormat {
+        internal static string DropTableFormat {
             get {
-                return ResourceManager.GetString("DropFormat", resourceCulture);
+                return ResourceManager.GetString("DropTableFormat", resourceCulture);
             }
         }
         

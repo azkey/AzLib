@@ -252,6 +252,22 @@ namespace AzLib.DataBase {
 		}
 
 		public DataTable CreateDataTable(string tableName, object parameters = null) {
+			var resultTable = new DataTable();
+			var selectQuery = string.Format(Sql.SelectQueryFormat, "*", tableName);
+
+			if (parameters != null) {
+				selectQuery += string.Format(Sql.WhereQueryFormat, AnonymousTypeToWhereString(parameters));
+			}
+
+			InitializeCommand(selectQuery);
+
+			this.DataAdapter.SelectCommand = this.Command;
+
+			this.DataAdapter.Fill(resultTable);
+
+			resultTable.TableName = tableName;
+
+			return resultTable;
 		}
 
 		/// <summary>
@@ -328,8 +344,9 @@ namespace AzLib.DataBase {
 
 			if (parameters != null) {
 				this.Command.Parameters.AddRange(this.AnonymousTypeToNormalParameters(parameters));
-				this.Command.Parameters.AddRange(this.AnonymousTypeToUpdateValueParameters(values));
 			}
+
+			this.Command.Parameters.AddRange(this.AnonymousTypeToUpdateValueParameters(values));
 
 			return this.Command.ExecuteNonQuery();
 		}
@@ -353,8 +370,9 @@ namespace AzLib.DataBase {
 
 			if (parameters != null) {
 				this.Command.Parameters.AddRange(this.AnonymousTypeToNormalParameters(parameters));
-				this.Command.Parameters.AddRange(this.AnonymousTypeToUpdateValueParameters(values));
 			}
+
+			this.Command.Parameters.AddRange(this.AnonymousTypeToUpdateValueParameters(values));
 
 			using (var reader = this.Command.ExecuteReader()) {
 				while (reader.Read()) {
@@ -407,8 +425,16 @@ namespace AzLib.DataBase {
 		/// テーブルの削除
 		/// </summary>
 		/// <param name="tableName">テーブル名</param>
-		public void Drop(string tableName) {
-			this.NonQuery(string.Format(Sql.DropFormat, tableName));
+		public void DropTable(string tableName) {
+			this.NonQuery(string.Format(Sql.DropTableFormat, tableName));
+		}
+
+		/// <summary>
+		/// テーブルの削除
+		/// </summary>
+		/// <param name="tableName">テーブル名</param>
+		public void DropDatabase(string databaseName) {
+			this.NonQuery(string.Format(Sql.DropDatabaseFormat, databaseName));
 		}
 
 		/// <summary>
@@ -419,6 +445,20 @@ namespace AzLib.DataBase {
 			switch (this.Settings.ProviderName) {
 				case "System.Data.SqlClient":
 					return this.ExistsSql("SELECT * FROM sysobjects WHERE xtype = 'u' AND name = @name", new { name = tableName });
+
+				default:
+					throw new NotSupportedException();
+			}
+		}
+
+		/// <summary>
+		/// テーブルの存在を確認
+		/// </summary>
+		/// <param name="tableName">テーブル名</param>
+		public bool ExistsDatabase(string databaseName) {
+			switch (this.Settings.ProviderName) {
+				case "System.Data.SqlClient":
+					return this.ExistsSql("SELECT name FROM sys.databases WHERE name = @name", new { name = databaseName });
 
 				default:
 					throw new NotSupportedException();
@@ -533,22 +573,8 @@ namespace AzLib.DataBase {
 			var propNames = typeof(T).GetProperties().Select(prop => prop.Name);
 			var columns = string.Join("\t,\t", propNames);
 			var sql = string.Format(Sql.SelectQueryFormat, columns, tableName);
-			var resultEnum = this.Reader(sql, parameters);
 
-
-			foreach (var rec in resultEnum) {
-				var returnObj = new T();
-
-				for (int i = 0; i < rec.FieldCount; i++) {
-					var name = rec.GetName(i);
-
-					if (propNames.Contains(name)) {
-						returnObj.SetPropertyValue(name, rec.GetValue(i));
-					}
-				}
-
-				yield return returnObj;
-			}
+			return this.SelectSql<T>(sql, parameters);
 		}
 
 		/// <summary>
@@ -570,7 +596,7 @@ namespace AzLib.DataBase {
 					var name = rec.GetName(i);
 
 					if (propNames.Contains(name)) {
-						returnObj.SetPropertyValue(name, rec.GetValue(i));
+						returnObj.SetPropertyValue(name, rec[i] == DBNull.Value ? null : rec[i]);
 					}
 				}
 
@@ -722,7 +748,6 @@ namespace AzLib.DataBase {
 		/// <returns>条件パラメータオブジェクト</returns>
 		private DbParameter[] AnonymousTypeToNormalParameters(object obj) {
 			return obj.GetAllPropertyEnumerator()
-				.Where(tpl => tpl.Item2 != DBNull.Value)
 				.Select(tpl => {
 					var param = this.Command.CreateParameter();
 					param.ParameterName = this.Settings.GetPlaceHolder() + tpl.Item1;

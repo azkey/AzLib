@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SqlClient;
 using System.Linq;
 using AzLib.DataBase;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -8,16 +9,32 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace AzLibTest.DataBase {
 	[TestClass]
 	public class DbConnectorTest {
-		private static int _id;
+		public const string TEST_DB_NAME = "AzLibTest";
+		public const string TEST_TABLE_NAME = "tTest";
 		public static DbConnector dbCon;
 
-		[AssemblyInitialize()]
-		public static void AssemblyInitialize(TestContext myTestContext) {
-			DbSettings.Manager.AddSqlServer("Test", @"Data Source=.\SQLEXPRESS;Integrated Security=true;Initial Catalog=Test");
-			dbCon = new DbConnector(isolationLevel: null);
+		[TestInitialize()]
+		public void DbConnectorTestInitialize() {
+			dbCon.Insert(TEST_TABLE_NAME, new {
+				Int = 123,
+				String = "Test",
+				Date = new DateTime(2012, 1, 1),
+			});
+			dbCon.Insert(TEST_TABLE_NAME, new {
+				Int = 456,
+				String = DBNull.Value,
+				Date = DBNull.Value,
+			});
 		}
 
-		#region 接続操作系メソッド
+		[TestCleanup()]
+		public void DbConnectorTestCleanup() {
+			if (dbCon.ExistsTable(TEST_TABLE_NAME)) {
+				dbCon.Truncate(TEST_TABLE_NAME);
+			}
+		}
+
+		#region 接続系テスト
 		[TestMethod]
 		public void OpenTest() {
 			using (var dbCon = new DbConnector(isOpenConnection: false)) {
@@ -43,245 +60,197 @@ namespace AzLibTest.DataBase {
 		#region クエリ発行メソッド
 		[TestMethod]
 		public void ScalarTest() {
-			using (var dbCon = new DbConnector()) {
-				//簡易型
-				Assert.AreEqual(dbCon.Scalar("tTest", "String", new { Int = 1 }), "Test");
-				Assert.AreEqual(dbCon.Scalar("tTest", "Money", new { Int = 1 }), (decimal)7);
-				Assert.AreEqual(dbCon.Scalar("tTest", "Numeric", new { Int = 1 }), (decimal)6);
+			//簡易型
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "Int", new { Int = 123 }), 123);
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "String", new { Int = 123 }), "Test");
 
-				//SQL型
-				Assert.AreEqual(dbCon.Scalar("SELECT Text From tTest Where Int = @Int", new { Int = 1 }), "テスト");
-				Assert.AreEqual(dbCon.Scalar("SELECT Date From tTest Where Int = @Int", new { Int = 1 }), new DateTime(2000, 1, 1));
-				Assert.AreEqual(dbCon.Scalar("SELECT Bool From tTest Where Int = @Int", new { Int = 1 }), true);
+			//スカラ値取得メソッドなのに複数の値を返却するケース
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "Int"), 123);
 
-				//スカラ値取得メソッドなのに複数値取得クエリ
-				Assert.AreEqual(dbCon.Scalar("SELECT Bool, String From tTest Where Int = @Int", new { Int = 1 }), true);
-				Assert.AreEqual(dbCon.Scalar("SELECT Bool, String From tTest"), true);
-
-				//NULLの検証
-				Assert.AreEqual(dbCon.Scalar("tTest", "Date", new { Int = DBNull.Value }), null);
-			}
+			//NULLの検証
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "Date", new { Int = 456 }), null);
 		}
 
 		[TestMethod]
 		public void ScalarGenericTest() {
-			Assert.AreEqual(dbCon.Scalar<string>("tTest", "String", new { Int = 1 }), "Test");
-			Assert.AreEqual(dbCon.Scalar<decimal>("tTest", "Money", new { Int = 1 }), 7);
-			Assert.AreEqual(dbCon.Scalar<decimal>("tTest", "Numeric", new { Int = 1 }), 6);
-			Assert.AreEqual(dbCon.Scalar<string>("tTest", "Text", new { Int = 1 }), "テスト");
-			Assert.AreEqual(dbCon.Scalar<DateTime>("tTest", "Date", new { Int = 1 }), new DateTime(2000, 1, 1));
-			Assert.AreEqual(dbCon.Scalar<bool>("tTest", "Bool", new { Int = 1 }), true);
+			Assert.AreEqual(dbCon.Scalar<int>(TEST_TABLE_NAME, "Int", new { Int = 123 }), 123);
+			Assert.AreEqual(dbCon.Scalar<string>(TEST_TABLE_NAME, "String", new { Int = 123 }), "Test");
 
 			//NULLの検証
-			Assert.AreEqual(dbCon.Scalar<DateTime>("tTest", "Date", new { Int = DBNull.Value }), default(DateTime));
-			Assert.AreEqual(dbCon.Scalar<DateTime?>("tTest", "Date", new { Int = DBNull.Value }), null);
+			Assert.AreEqual(dbCon.Scalar<DateTime>(TEST_TABLE_NAME, "Date", new { Int = 456 }), default(DateTime));
+			Assert.AreEqual(dbCon.Scalar<DateTime?>(TEST_TABLE_NAME, "Date", new { Int = 456 }), null);
 		}
 
 		[TestMethod]
 		public void ReaderTest() {
-			var headerList = new List<string>(new string[]{
-						"Int","TinyInt","BigInt","Float","Decimal","Numeric","Money","String","Date","DateTime","Bool","Binary","Text","TimeStamp","Nul"
-					});
-			var gotHeader = new List<string>();
-			var resultEnum = dbCon.Reader("SELECT * FROM tTest ORDER BY Int");
-			var valueTestEnum = resultEnum
-				.Select(rec => {
-					if (gotHeader.Count == 0) {
+			var definedColumnNames = new string[] { "ID", "Int", "String" };
+			var columnNameList = new List<string>();
+			var valueTestEnum = dbCon.Reader("SELECT * FROM " + TEST_TABLE_NAME + " ORDER BY Int")
+				.Select((rec, count) => {
+					if (count == 0) {
 						for (int i = 0; i < rec.FieldCount; i++) {
-							gotHeader.Add(rec.GetName(i));
+							columnNameList.Add(rec.GetName(i));
 						}
 					}
 
-					return new {
-						Int = rec.GetInt32(0),
-						Float = rec.GetDouble(3),
-						Decimal = rec.GetDecimal(4),
-						String = rec["String"],
-						Date = rec["Date"],
-						Nul = rec.IsDBNull(14)
-					};
+					return Tuple.Create(new {
+						ID = rec["ID"],
+						Int = rec["Int"],
+						String = rec["String"]
+					}, count);
 				});
 
-			Assert.AreEqual(headerList
-				.Zip(headerList, (str, lst) => new { List = str, Db = lst })
-				.Count(itm => itm.List != itm.Db), 0);
+			Assert.AreEqual(definedColumnNames
+				.Zip(columnNameList, (def, col) => new { Def = def, Column = col })
+				.Count(itm => itm.Def != itm.Column), 0);
 
-			Assert.AreEqual(valueTestEnum.First().Int, 1);
-			Assert.AreEqual(valueTestEnum.First().Float, 4f);
-			Assert.AreEqual(valueTestEnum.First().Decimal, (decimal)5.1);
-			Assert.AreEqual(valueTestEnum.First().String, "Test");
-			Assert.AreEqual(valueTestEnum.First().Date, new DateTime(2000, 1, 1));
-			Assert.AreEqual(valueTestEnum.First().Nul, true);
-
-			Assert.AreEqual(valueTestEnum.Skip(1).First().Int, 2);
-			Assert.AreEqual(valueTestEnum.Skip(1).First().Float, 5f);
-			Assert.AreEqual(valueTestEnum.Skip(1).First().Decimal, (decimal)6.1);
-			Assert.AreEqual(valueTestEnum.Skip(1).First().String, "Test2");
-			Assert.AreEqual(valueTestEnum.Skip(1).First().Date, new DateTime(2020, 1, 1));
-			Assert.AreEqual(valueTestEnum.Skip(1).First().Nul, true);
+			foreach (var tpl in valueTestEnum) {
+				if (tpl.Item2 == 0) {
+					Assert.AreEqual(tpl.Item1.Int, 123);
+					Assert.AreEqual(tpl.Item1.String, "Test");
+				} else if (tpl.Item2 == 1) {
+					Assert.AreEqual(tpl.Item1.Int, 456);
+					Assert.AreEqual(tpl.Item1.String, DBNull.Value);
+				}
+			}
 		}
 
 		[TestMethod]
 		public void NonQueryTest() {
-			dbCon.NonQuery("INSERT INTO tTest (Int, String) VALUES(@Int, @String)", new { Int = 5000, String = "NonQuery" });
+			dbCon.NonQuery("INSERT INTO " + TEST_TABLE_NAME + " (Int, String) VALUES(@Int, @String)", new { Int = 5000, String = "NonQuery" });
 
 			Assert.AreEqual(dbCon.Scalar<int>("tTest", "Int", new { Int = 5000 }), 5000);
 			Assert.AreEqual(dbCon.Scalar<string>("tTest", "String", new { Int = 5000 }), "NonQuery"); ;
-
-			dbCon.Delete("tTest", new { Int = 5000 });
 		}
 
 		[TestMethod]
 		public void InsertTest() {
-			dbCon.Insert("tTest", new {
-				Int = 3,
-				TinyInt = 4,
-				String = "InsertTest",
-				Date = new DateTime(1999, 1, 1)
+			dbCon.Insert(TEST_TABLE_NAME, new {
+				Int = 789,
+				String = "Insert",
+				Date = new DateTime(2000, 1, 1),
 			});
 
-			var reader = dbCon.Reader("SELECT * FROM tTest WHERE Int = @Int", new {
-				Int = 3
-			});
-
-			foreach (var rec in reader) {
-				Assert.AreEqual(rec["Int"], 3);
-				Assert.AreEqual(rec["TinyInt"], (byte)4);
-				Assert.AreEqual(rec["String"], "InsertTest");
-				Assert.AreEqual(rec["Date"], new DateTime(1999, 1, 1));
-			};
-
-			dbCon.Delete("tTest", new { Int = 3, String = "InsertTest" });
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "Int", new { Int = 789 }), 789);
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "String", new { Int = 789 }), "Insert");
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "Date", new { Int = 789 }), new DateTime(2000, 1, 1));
 		}
 
 		[TestMethod]
 		public void InsertContainsIdTest() {
-			_id = dbCon.InsertContainsIdentity("tIdTest", "ID", new {
-				DATA = "Test",
+			var id = dbCon.InsertContainsIdentity(TEST_TABLE_NAME, "ID", new {
+				Int = 789,
+				String = "Insert",
+				Date = new DateTime(2000, 1, 1),
 			});
 
-			Assert.AreEqual(dbCon.Scalar("tIdTest", "DATA", new { ID = _id }), "Test");
-
-			dbCon.Delete("tIdTest", new { ID = _id });
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "Int", new { ID = id }), 789);
 		}
 
 		[TestMethod]
 		public void UpdateTest() {
-			dbCon.Insert("tTest", new { Int = 9999, String = "UpdateTest" });
+			int count = dbCon.Update(TEST_TABLE_NAME, new { String = "Updated" }, new { Int = 123 });
 
-			int count = dbCon.Update("tTest", new { String = "Updated" }, new { Int = 9999 });
-
-			Assert.AreEqual(dbCon.Scalar("tTest", "String", new { Int = 9999 }), "Updated");
+			Assert.AreEqual(dbCon.Scalar(TEST_TABLE_NAME, "String", new { Int = 123 }), "Updated");
 			Assert.AreEqual(count, 1);
-
-			dbCon.Delete("tTest", new { Int = 9999 });
 		}
 
 		[TestMethod]
 		public void UpdateAndResults() {
-			dbCon.Insert("tTest", new { Int = 9000, String = "UpdateTest" });
-
-			var valueTestEnum = dbCon.UpdateAndResults("tTest", new { Int = 8000, String = "Updated" }, new { Int = 9000 })
-				.Select(rec => {
-					return new {
-						OldInt = rec.GetInt32(0),
-						OldString = rec.GetString(1),
-						NewInt = rec.GetInt32(2),
-						NewString = rec.GetString(3),
-					};
+			var valueTestEnum = dbCon.UpdateAndResults(TEST_TABLE_NAME, new { String = "Updated" })
+				.Select((rec, count) => {
+					return Tuple.Create(new {
+						OldString = rec.IsDBNull(0) ? null : rec.GetString(0),
+						NewString = rec.GetString(1),
+					}, count);
 				});
 
-			var itm = valueTestEnum.First();
-
-			Assert.AreEqual(itm.OldInt, 9000);
-			Assert.AreEqual(itm.OldString, "UpdateTest");
-			Assert.AreEqual(itm.NewInt, 8000);
-			Assert.AreEqual(itm.NewString, "Updated");
-
-			dbCon.Delete("tTest", new { Int = 8000 });
+			foreach (var itm in valueTestEnum) {
+				if (itm.Item2 == 0) {
+					Assert.AreEqual(itm.Item1.OldString, "Test");
+					Assert.AreEqual(itm.Item1.NewString, "Updated");
+				} else if (itm.Item2 == 1) {
+					Assert.AreEqual(itm.Item1.OldString, null);
+					Assert.AreEqual(itm.Item1.NewString, "Updated");
+				}
+			}
 		}
 
 		[TestMethod]
 		public void DeleteTest() {
-			dbCon.Insert("tTest", new { Int = 4000, String = "DeleteTarget" });
-			int count = dbCon.Delete("tTest", new { Int = 4000 });
-			Assert.AreEqual(dbCon.Exists("tTest", new { Int = 4000 }), false);
+			int count = dbCon.Delete(TEST_TABLE_NAME, new { Int = 123 });
+			Assert.AreEqual(dbCon.Exists(TEST_TABLE_NAME, new { Int = 123 }), false);
+			Assert.AreEqual(count, 1);
+
+			int count2 = dbCon.Delete(TEST_TABLE_NAME);
+			Assert.AreEqual(dbCon.Exists(TEST_TABLE_NAME, new { Int = 456 }), false);
 			Assert.AreEqual(count, 1);
 		}
 
 		[TestMethod]
 		public void DeleteAndResultTest() {
-			dbCon.Insert("tTest", new { Int = 3000, String = "DeleteTarget" });
+			var deleteTestEnum = dbCon.DeleteAndResults(TEST_TABLE_NAME)
+				.Select((rec, count) => Tuple.Create(new { Int = rec["Int"], String = rec["String"] }, count));
 
-			var result = dbCon.DeleteAndResults("tTest", new { Int = 3000 })
-				.Select(rec => new { Int = rec["Int"], String = rec["String"] });
-
-			var itm = result.First();
-
-			Assert.AreEqual(itm.Int, 3000);
-			Assert.AreEqual(itm.String, "DeleteTarget");
+			foreach (var tpl in deleteTestEnum) {
+				if (tpl.Item2 == 0) {
+					Assert.AreEqual(tpl.Item1.Int, 123);
+					Assert.AreEqual(tpl.Item1.String, "Test");
+				} else if (tpl.Item2 == 1) {
+					Assert.AreEqual(tpl.Item1.Int, 456);
+					Assert.AreEqual(tpl.Item1.String, DBNull.Value);
+				}
+			}
 		}
 
 		[TestMethod]
 		public void TruncateTest() {
-			for (int i = 0; i < 100; i++) {
-				dbCon.Insert("tIdTest", new { DATA = i });
-			}
+			dbCon.Truncate(TEST_TABLE_NAME);
 
-			dbCon.Truncate("tIdTest");
-
-			Assert.AreEqual(dbCon.Scalar("tIdTest", "count(*)"), 0);
+			Assert.AreEqual(dbCon.Exists(TEST_TABLE_NAME), false);
 		}
 
 		[TestMethod]
-		public void DropTest() {
-			dbCon.NonQuery("CREATE TABLE tDropTest(Test int)");
-			dbCon.Drop("tDropTest");
+		public void DropTableTest() {
+			dbCon.DropTable(TEST_TABLE_NAME);
+
+			Assert.AreEqual(dbCon.ExistsTable(TEST_TABLE_NAME), false);
+		}
+
+		[TestMethod]
+		public void DropDatabaseTest() {
+			dbCon.NonQuery("USE master");
+			dbCon.DropDatabase(TEST_DB_NAME);
+
+			Assert.AreEqual(dbCon.ExistsDatabase(TEST_DB_NAME), false);
 		}
 
 		[TestMethod]
 		public void ExistsTableTest() {
-			Assert.AreEqual(dbCon.ExistsTable("tTest"), true);
+			Assert.AreEqual(dbCon.ExistsTable(TEST_TABLE_NAME), true);
 			Assert.AreEqual(dbCon.ExistsTable("nothing"), false);
 		}
 
 		[TestMethod]
 		public void ExistsTest() {
-			Assert.AreEqual(dbCon.Exists("tTest", new { Int = 1 }), true);
-			Assert.AreEqual(dbCon.Exists("tTest", new { Int = 5 }), false);
-			Assert.AreEqual(dbCon.ExistsSql("SELECT * FROM tTest WHERE Int = @Int", new { Int = 1 }), true);
-			Assert.AreEqual(dbCon.ExistsSql("SELECT * FROM tTest WHERE Int = @Int", new { Int = 5 }), false);
+			Assert.AreEqual(dbCon.Exists(TEST_TABLE_NAME, new { Int = 123 }), true);
+			Assert.AreEqual(dbCon.Exists(TEST_TABLE_NAME, new { Int = 321 }), false);
 		}
 
 		[TestMethod]
 		public void SingleTest() {
-			var list = dbCon.Single<string>("tTest", "String");
+			var list = dbCon.Single<string>(TEST_TABLE_NAME, "String");
 
-			Assert.AreEqual(list.First(), "Test");
-			Assert.AreEqual(list.Skip(1).First(), "Test2");
+			Assert.AreEqual(list[0], "Test");
+			Assert.AreEqual(list[1], null);
 		}
 
 		[TestMethod]
 		public void PairTest() {
-			var dic = dbCon.Pair<int, string>("tTest", "Int", "String");
+			var dic = dbCon.Pair<int, string>(TEST_TABLE_NAME, "Int", "String");
 
-			Assert.AreEqual(dic[1], "Test");
-			Assert.AreEqual(dic[2], "Test2");
-		}
-
-		[TestMethod]
-		public void SelectSqlTest() {
-			var resultEnum = dbCon.SelectSql<TestClass>("SELECT Int, String FROM tTest");
-
-			foreach (var itm in resultEnum) {
-				if (itm.Int == 1) {
-					Assert.AreEqual(itm.Int, 1);
-					Assert.AreEqual(itm.String, "Test");
-				} else {
-					Assert.AreEqual(itm.Int, 2);
-					Assert.AreEqual(itm.String, "Test2");
-				}
-			}
+			Assert.AreEqual(dic[123], "Test");
+			Assert.AreEqual(dic[456], null);
 		}
 
 		[TestMethod]
@@ -289,21 +258,23 @@ namespace AzLibTest.DataBase {
 			var resultEnum = dbCon.Select<TestClass>("tTest");
 
 			foreach (var itm in resultEnum) {
-				if (itm.Int == 1) {
-					Assert.AreEqual(itm.Int, 1);
+				if (itm.Int == 123) {
 					Assert.AreEqual(itm.String, "Test");
 				} else {
-					Assert.AreEqual(itm.Int, 2);
-					Assert.AreEqual(itm.String, "Test2");
+					Assert.AreEqual(itm.Int, 456);
+					Assert.AreEqual(itm.String, null);
 				}
 			}
 		}
 		#endregion
 
-		[AssemblyCleanup()]
-		public static void AssemblyCleanup() {
-			dbCon.Dispose();
+		#region トランザクションテスト
+		[TestMethod]
+		public void TransactionTest() {
+
 		}
+
+		#endregion
 
 		private class TestClass {
 			public int Int { get; set; }

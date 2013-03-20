@@ -158,10 +158,13 @@ OUTPUT
     <value>WHERE
 	{0}</value>
   </data>
-  <data name="DropFormat" xml:space="preserve">
+  <data name="DropTableFormat" xml:space="preserve">
     <value>DROP TABLE {0}</value>
   </data>
   <data name="TruncateFormat" xml:space="preserve">
     <value>TRUNCATE TABLE {0}</value>
+  </data>
+  <data name="DropDatabaseFormat" xml:space="preserve">
+    <value>DROP DATABASE {0}</value>
   </data>
 </root>

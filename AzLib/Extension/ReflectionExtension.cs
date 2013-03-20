@@ -57,6 +57,40 @@ namespace AzLib.Extension {
 		}
 
 		/// <summary>
+		/// プロパティ名から値を高速取得する
+		/// </summary>
+		/// <param name="type">取得対象の型</param>
+		/// <param name="target">取得対象のオブジェクト</param>
+		/// <param name="propertyName">プロパティ名</param>
+		/// <returns>プロパティの値</returns>
+		public static object GetPropertyValue(this Type type, object target, string propertyName) {
+			GetSiteCollection getSiteCollection = null;
+			CallSite<Func<CallSite, object, object>> siteGet = null;
+
+			//型キャッシュの存在確認
+			if (_getSiteCollectionCache.TryGetValue(type, out getSiteCollection)) {
+				siteGet = getSiteCollection[propertyName];
+
+				//Getterキャッシュの存在確認
+				if (siteGet != null) {
+					return siteGet.Target(siteGet, target);
+				}
+			}
+
+			var argInfo = new CSharpArgumentInfo[] { CSharpArgumentInfo.Create(CSharpArgumentInfoFlags.None, null) };
+			siteGet = CallSite<Func<CallSite, object, object>>.Create(Microsoft.CSharp.RuntimeBinder.Binder.GetMember(CSharpBinderFlags.None, propertyName, type, argInfo));
+
+			if (getSiteCollection == null) {
+				getSiteCollection = new GetSiteCollection(propertyName, siteGet);
+				_getSiteCollectionCache.Add(type, getSiteCollection);
+			} else {
+				getSiteCollection.Add(propertyName, siteGet);
+			}
+
+			return siteGet.Target(siteGet, target);
+		}
+
+		/// <summary>
         /// プロパティ名と値を全て高速取得する
 		/// </summary>
 		/// <param name="obj">取得対象のオブジェクト</param>
@@ -79,6 +113,18 @@ namespace AzLib.Extension {
 
 			return propNames
 				.Select(propName => Tuple.Create(propName, obj.GetPropertyValue(propName)));
+		}
+
+		/// <summary>
+		/// プロパティ名と値を全て高速取得する
+		/// </summary>
+		/// <param name="obj">取得対象のオブジェクト</param>
+		/// <returns>プロパティ名と値を含んだDictionary</returns>
+		public static IEnumerable<Tuple<string, object>> GetAllPropertyEnumerator(this Type type, object target) {
+			var propNames = type.GetProperties().Select(prop => prop.Name);
+
+			return propNames
+				.Select(propName => Tuple.Create(propName, target.GetPropertyValue(propName)));
 		}
 	}
 }

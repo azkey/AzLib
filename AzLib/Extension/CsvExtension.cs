@@ -80,5 +80,11 @@ namespace AzLib.Extension {
 				}
 			}
 		}
+
+		//public static DataTable CsvToDataTable(object csv, char delimiter = ',', bool containHeader = true, bool trimItem = true) {
+		//}
+
+		public static void FillFromCsv(object csv, DataTable table, char delimiter = ',', bool containHeader = true, bool trimItem = true) {
+		}
 	}
 }
